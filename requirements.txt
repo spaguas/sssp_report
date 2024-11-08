@@ -114,3 +114,4 @@ whiteboxgui==2.3.0
 widgetsnbextension==4.0.13
 xyzservices==2024.9.0
 pygdal==3.6.2.*
+gdal==3.6.4
