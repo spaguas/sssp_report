@@ -1,5 +1,4 @@
 import streamlit as st
-import leafmap.foliumap as leafmap
 import geopandas as gpd
 from osgeo import gdal, ogr, osr
 import requests
