@@ -53,7 +53,6 @@ radius = st.slider(
     help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência. 10km de buffer corresponde a 0,1"
 )
 
-
 def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
@@ -106,7 +105,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     dataSource = None
 
-    output_raster = "output_idw.tif"
+    output_raster = f"output_idw_{datetime.now().strftime("%Y-%m-%d")}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,

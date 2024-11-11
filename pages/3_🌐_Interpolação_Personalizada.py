@@ -69,6 +69,8 @@ radius = st.slider(
 url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true'
 titulo = f"Acumulado de chuvas de {data_hora_inicial} à {data_hora_final}"
 
+date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
+
 def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
@@ -121,7 +123,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     dataSource = None
 
-    output_raster = "output_idw.tif"
+    output_raster = f"results/output_idw_{date_time_id}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,
@@ -142,7 +144,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     raster.SetProjection(srs.ExportToWkt())
     raster = None
 
-    cropped_raster = "output_idw_cropped.tif"
+    cropped_raster = f"results/output_idw_cropped_{date_time_id}.tif"
     gdal.Warp(
         cropped_raster,
         output_raster,
