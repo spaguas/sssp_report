@@ -37,7 +37,7 @@ st.subheader("Parâmetros da Interpolação IDW")
 
 power = st.slider(
     "Power (potência da interpolação)",
-    min_value=0.5, max_value=5.0, value=2.0, step=0.1,
+    min_value=0.0, max_value=5.0, value=2.0, step=0.1,
     help="A potência determina o peso da distância na interpolação."
 )
 
@@ -49,7 +49,7 @@ smoothing = st.slider(
 
 radius = st.slider(
     "Radius (raio de influência)",
-    min_value=0.0, max_value=20.0, value=10.0, step=0.1,
+    min_value=0.0, max_value=10.0, value=10.0, step=0.1,
     help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência. 10km de buffer corresponde a 0,1"
 )
 

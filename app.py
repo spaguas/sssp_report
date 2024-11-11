@@ -2,7 +2,7 @@ import streamlit as st
 import leafmap.foliumap as leafmap
 
 st.set_page_config(layout="wide")
-st.title('Geração dos mapas interpolados dos pluviómetros')
+st.title('Geração dos mapas interpolados dos pluviômetros')
 
 st.sidebar.image('data/logo.png')
 

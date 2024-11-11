@@ -7,13 +7,33 @@ import numpy as np
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from PIL import Image
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import os
 
-st.set_page_config(layout="wide")
-st.title('Interpolação IDW contínuo')
+# Parâmetros de entrada do usuário no Streamlit
+st.title("Interpolação Personalizada contínuo")
 
 st.sidebar.image('data/logo.png')
+
+data_inicial = st.date_input("Escolha a data inicial:", value=datetime.today())
+hora_inicial = st.time_input("Escolha a hora inicial:", value=time(7, 0))  # Hora padrão fixa para 07:00
+
+# Combina a data e a hora selecionada em um único objeto datetime
+data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
+
+# Exibe o datetime combinado para confirmar a seleção
+st.write("Data e Hora Iniciais Selecionadas:", data_hora_inicial)
+
+# Formatação para construir a URL
+data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
+hora_inicial_str = data_hora_inicial.strftime('%H:%M')
+
+# Escolha do intervalo de horas
+horas = st.number_input("Quantidade de horas para acumulação de chuva:", min_value=1, max_value=24*31, value=2)
+
+data_hora_final = data_hora_inicial - timedelta(hours=horas)
+st.write("Data e Hora Finais Selecionadas:", data_hora_final)
+
 
 # Recebe o valor digitado no `st.text_input` como entrada do usuário
 excluir_prefixos = st.text_input(
@@ -23,19 +43,12 @@ excluir_prefixos = st.text_input(
     help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
 ).strip()
 
-# Processa a lista de prefixos inseridos, se houver algum
-if excluir_prefixos:
-    prefixos_para_excluir = [prefixo.strip() for prefixo in excluir_prefixos.split(",")]
-    st.write(f"Prefixos a serem excluídos: {prefixos_para_excluir}")
-else:
-    st.write("Nenhum prefixo excluído.")
-
 # Sliders para ajustar parâmetros da interpolação IDW
 st.subheader("Parâmetros da Interpolação IDW")
 
 power = st.slider(
     "Power (potência da interpolação)",
-    min_value=0.5, max_value=5.0, value=2.0, step=0.1,
+    min_value=0.0, max_value=5.0, value=2.0, step=0.1,
     help="A potência determina o peso da distância na interpolação."
 )
 
@@ -47,12 +60,15 @@ smoothing = st.slider(
 
 radius = st.slider(
     "Radius (raio de influência)",
-    min_value=0.0, max_value=20.0, value=10.0, step=0.1,
+    min_value=0.0, max_value=10.0, value=10.0, step=0.1,
     help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência. 10km de buffer corresponde a 0,1"
 )
 
 
-# Função para gerar o mapa de chuva
+# Construção da URL com os parâmetros
+url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true'
+titulo = f"Acumulado de chuvas de {data_hora_inicial} à {data_hora_final}"
+
 def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
@@ -116,7 +132,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     )
 
     if not os.path.exists(output_raster):
-        st.error(f"Erro: O raster intermediário {output_raster} não foi criado.")
+        st.error("Erro: O raster intermediário não foi criado.")
         return
 
     # Definindo sistema de coordenadas EPSG:4326 no raster
@@ -135,6 +151,10 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         dstNodata=np.nan,
     )
 
+    if not os.path.exists(cropped_raster):
+        st.error("Erro: O raster recortado não pôde ser criado.")
+        return
+
     # Plot do resultado
     fig, ax = plt.subplots(figsize=(18, 12))
 
@@ -149,20 +169,15 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     cmap = ListedColormap([
         "#ffffff00", "#0080aabf", "#0000B3", "#80FF55", "#00CC7F",
         "#558000", "#005500", "#FFFF00", "#FFCC00", "#FF9900",
-        "#D55500", "#FFBBFF", "#FF2B80", "#8000AA"
+        "#D55500", "#FFBBFF", "#FF2B80", "#8000AA", "#bc3754", "#000004"
     ])
 
-    bounds = [0, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+    bounds = [0, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250, 500]
     norm = BoundaryNorm(bounds, cmap.N)
 
     img = ax.imshow(raster_data, cmap=cmap, extent=(minx, maxx, miny, maxy), norm=norm)
-
     sp_border.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
 
-    cbar = fig.colorbar(img, ax=ax, orientation="horizontal", label="Precipitação (mm)", shrink=0.75, pad=0.05, extend='max')
-    cbar.set_ticks(bounds)
-    cbar.set_ticklabels([str(b) for b in bounds])
-    cbar.ax.tick_params(labelsize=12)
 
     logo_path = "./data/logo.png"
     if os.path.exists(logo_path):
@@ -177,10 +192,16 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         )
         ax.add_artist(ab)
 
+    cbar = fig.colorbar(img, ax=ax, orientation="horizontal", label="Precipitação (mm)", shrink=0.75, pad=0.05, extend='max')
+    cbar.set_ticks(bounds)
+    cbar.set_ticklabels([str(b) for b in bounds])
+    cbar.ax.tick_params(labelsize=12)
+
     annotation_text = (
         "Interpolação dos pluviômetros a partir do método IDW.\n"
         "Elaborado pela equipe técnica da Sala de Situação São Paulo (SSSP)."
     )
+
     ax.annotate(
         annotation_text, xy=(0.02, 0.02), xycoords='axes fraction',
         fontsize=8, ha='left', va='bottom',
@@ -193,18 +214,6 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     st.pyplot(fig)
 
-
-
-# Entradas do usuário
-hoje = datetime.now()
-hoje_format = hoje.strftime('%Y-%m-%d')
-ontem = hoje - timedelta(days=1)
-ontem_format = ontem.strftime('%Y-%m-%d')
-
-url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours=24&from_date={hoje_format}T07%3A00&show_all=true'
-titulo = f"Acumulado de chuvas 24H\n07:00h de {ontem_format} às 07h de {hoje_format}"
-
-# Chamar função com o botão
+# Executar a função ao clicar no botão
 if st.button("Gerar Mapa"):
     gerar_mapa_chuva(url, titulo, excluir_prefixos)
-
