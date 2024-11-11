@@ -76,7 +76,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
     minx, miny, maxx, maxy = sp_border.total_bounds
 
-    sp_border_shapefile = "sp_border.shp"
+    sp_border_shapefile = "results/sp_border.shp"
     sp_border.to_file(sp_border_shapefile)
 
     # Obtendo dados da API
@@ -105,7 +105,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     lats, longs, values = zip(*filtered_stations)
 
     # Salvando os pontos em um shapefile temporário
-    shapefile_path = "temp_points.shp"
+    shapefile_path = "results/temp_points.shp"
     driver = ogr.GetDriverByName("ESRI Shapefile")
     dataSource = driver.CreateDataSource(shapefile_path)
     layer = dataSource.CreateLayer("layer", geom_type=ogr.wkbPoint)
@@ -123,7 +123,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     dataSource = None
 
-    output_raster = f"results/output_idw_{date_time_id}.tif"
+    output_raster = f"results/raster_idw_{date_time_id}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,
@@ -144,7 +144,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     raster.SetProjection(srs.ExportToWkt())
     raster = None
 
-    cropped_raster = f"results/output_idw_cropped_{date_time_id}.tif"
+    cropped_raster = f"results/raster_idw_cropped_{date_time_id}.tif"
     gdal.Warp(
         cropped_raster,
         output_raster,
