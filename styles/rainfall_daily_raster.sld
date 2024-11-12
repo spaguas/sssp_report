@@ -11,6 +11,11 @@
           <RasterSymbolizer>
             <Opacity>1</Opacity>
             <ColorMap type="intervals">
+              <!--
+              "#ffffff00", "#d5ffff", "#00d5ff", "#0080aa", "#0000b3",
+              "#80ff55", "#00cc7f", "#558000", "#005500", "#ffff00",
+              "#ffcc00", "#ff9900", "#d55500", "#ffbbff", "#ff2b80", "#8000aa"
+              -->
               <ColorMapEntry color="#ffffff" quantity="0.99" label="0" opacity="0"/>
               <ColorMapEntry color="#00ffff" quantity="1" label="1" opacity="1"/>
               <ColorMapEntry color="#00c2ff" quantity="2" label="2" opacity="1"/>

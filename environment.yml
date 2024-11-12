@@ -15,3 +15,5 @@ dependencies:
   - geopandas
   - plotly
   - rasterstats
+  - leafmap
+  - matplotlib
