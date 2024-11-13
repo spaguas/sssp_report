@@ -12,6 +12,13 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from PIL import Image
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+# Loading Environment Variables
+load_dotenv()
+
+# Importing Geodados Funcionst o Upload Generated Maps
+import functions.geodados as geodados
 
 st.set_page_config(layout="wide")
 st.title('Interpolação por Estação - IDW contínuo')
@@ -60,6 +67,8 @@ hoje = datetime.now()
 hoje_format = hoje.strftime('%Y-%m-%d')
 ontem = hoje - timedelta(days=1)
 ontem_format = ontem.strftime('%Y-%m-%d')
+
+date_time_id = ontem.strftime("%Y%m%d%H%M")
 
 url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours=24&from_date={hoje_format}T07%3A00&show_all=true'
 titulo = f"Acumulado de chuvas 24H\n07:00h de {ontem_format} às 07h de {hoje_format}"
@@ -129,7 +138,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
     minx, miny, maxx, maxy = sp_border.total_bounds
 
-    sp_border_shapefile = "sp_border.shp"
+    sp_border_shapefile = "results/sp_border.shp"
     sp_border.to_file(sp_border_shapefile)
 
     # Obtendo dados da API
@@ -158,7 +167,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     lats, longs, values = zip(*filtered_stations)
 
     # Salvando os pontos em um shapefile temporário
-    shapefile_path = "temp_points.shp"
+    shapefile_path = "results/temp_points.shp"
     driver = ogr.GetDriverByName("ESRI Shapefile")
     dataSource = driver.CreateDataSource(shapefile_path)
     layer = dataSource.CreateLayer("layer", geom_type=ogr.wkbPoint)
@@ -176,7 +185,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     dataSource = None
 
-    output_raster = "output_idw.tif"
+    output_raster = f"results/raster_idw_{date_time_id}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,
@@ -197,7 +206,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     raster.SetProjection(srs.ExportToWkt())
     raster = None
 
-    cropped_raster = "output_idw_cropped.tif"
+    cropped_raster = f"results/raster_idw_cropped_{date_time_id}.tif"
     gdal.Warp(
         cropped_raster,
         output_raster,
@@ -205,6 +214,14 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         cropToCutline=True,
         dstNodata=np.nan,
     )
+
+    # Make upload to Geodados
+    geodados.make_upload_to_geonode(f"raster_idw_cropped_{str(date_time_id)}",cropped_raster,{
+       "title": "Chuva Acumulada 24h - "+str(ontem.strftime('%Y-%m-%d')),
+        "abstract": "Chuva acumulada das últimas 24h do dia "+str(ontem.strftime('%Y-%m-%d')),
+        "category": 19,
+        "license": 4, 
+    }, "styles/rainfall_daily_raster.sld")
 
     # Plot do resultado
     fig, ax = plt.subplots(figsize=(18, 12))

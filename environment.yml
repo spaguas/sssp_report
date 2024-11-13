@@ -1,0 +1,19 @@
+name: myenv
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pandas
+  - numpy
+  - requests
+  - gdal
+  - python-dotenv
+  - psycopg2
+  - streamlit
+  - pip
+  - geopandas
+  - plotly
+  - rasterstats
+  - leafmap
+  - matplotlib
