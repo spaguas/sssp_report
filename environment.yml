@@ -17,3 +17,5 @@ dependencies:
   - rasterstats
   - leafmap
   - matplotlib
+  - schedule
+  - time

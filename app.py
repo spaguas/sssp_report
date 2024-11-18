@@ -2,6 +2,7 @@ import streamlit as st
 import leafmap.foliumap as leafmap
 from dotenv import load_dotenv
 
+
 # Loading Environment Variables
 load_dotenv()
 
