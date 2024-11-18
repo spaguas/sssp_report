@@ -169,12 +169,12 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     raster_data = raster.ReadAsArray()
 
     cmap = ListedColormap([
-        "#ffffff00", "#0080aabf", "#0000B3", "#80FF55", "#00CC7F",
-        "#558000", "#005500", "#FFFF00", "#FFCC00", "#FF9900",
-        "#D55500", "#FFBBFF", "#FF2B80", "#8000AA", "#bc3754", "#000004"
+        "#ffffff00", "#d5ffff", "#00d5ff", "#0080aa", "#0000b3",
+        "#80ff55", "#00cc7f", "#558000", "#005500", "#ffff00",
+        "#ffcc00", "#ff9900", "#d55500", "#ffbbff", "#ff2b80", "#8000aa",  "#000004"
     ])
 
-    bounds = [0, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250, 500]
+    bounds = [0, 0.5, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250, 500]
     norm = BoundaryNorm(bounds, cmap.N)
 
     img = ax.imshow(raster_data, cmap=cmap, extent=(minx, maxx, miny, maxy), norm=norm)
