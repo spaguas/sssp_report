@@ -11,6 +11,13 @@ from PIL import Image
 from datetime import datetime, timedelta
 import os
 from rasterstats import zonal_stats
+from dotenv import load_dotenv
+import functions.geodados as geodados
+import plotly.express as px
+
+
+# Loading Environment Variables
+load_dotenv()
 
 st.set_page_config(layout="wide")
 st.title('Interpolação IDW por município')
@@ -47,11 +54,14 @@ smoothing = st.slider(
     help="A suavização reduz a variabilidade na interpolação. Valores maiores tornam o mapa mais suave e menos influenciado por variações locais. Maior generalização"
 )
 
-radius = st.slider(
+radius1 = st.slider(
     "Radius (raio de influência)",
     min_value=0.0, max_value=10.0, value=10.0, step=0.1,
     help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência. 10km de buffer corresponde a 0,1"
 )
+
+upload_to_geonode = st.checkbox("Salvar no Geodados?", value=False, help="Selecione caso queira salvar o resultado no Geodados \n(https://geodados.daee.sp.gov.br/#/)")
+
 
 def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
@@ -110,7 +120,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
         output_raster,
         shapefile_path,
         zfield="value",
-        algorithm=f"invdist:power={power}:smoothing={smoothing}:radius={radius}",
+        algorithm=f"invdist:power={power}:smoothing={smoothing}:radius={radius1}",
         outputBounds=(minx, miny, maxx, maxy),
         width=1000, height=1000,
     )
@@ -137,7 +147,9 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
 
     # Zonal stats
     stats = zonal_stats(sp_border, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
-    municipios_stats = gpd.GeoDataFrame.from_features(stats)
+    
+    crs = {'init': 'epsg:4326'}
+    municipios_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
     municipios_stats = municipios_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
 
     # Converte os dados de precipitação para tipo float, preenchendo NaNs com zero
@@ -145,15 +157,30 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
         municipios_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
     ).fillna(0)
 
+    municipios_stats_shp = municipios_stats.rename(columns={f"{estatistica_desejada}_precipitation": "rain"})
+    municipios_stats_shp.to_file(f"./results/acumulado_24_mun_{ontem.strftime('%Y-%m-%d')}.shp", driver="ESRI Shapefile")
+
+
+    # Make upload to Geodados
+    if upload_to_geonode:
+        geodados.make_upload_to_geonode(f"acumulado_24_mun_{str(ontem.strftime('%Y-%m-%d'))}", f"./results/acumulado_24_mun_{str(ontem.strftime('%Y-%m-%d'))}.shp", {
+        "title": "Chuva Acumulada 24h - "+str(ontem.strftime('%Y-%m-%d')),
+            "abstract": "Chuva acumulada das últimas 24h do dia "+str(ontem.strftime('%Y-%m-%d')),
+            "category": 19,
+            "license": 4, 
+        }, "styles/rainfall_daily_polygon.sld")
+
+
     # Plot do resultado usando municipios_stats
     fig, ax = plt.subplots(figsize=(18, 12))
 
     cmap = ListedColormap([
-        "#ffffff00", "#0080aabf", "#0000B3", "#80FF55", "#00CC7F",
-        "#558000", "#005500", "#FFFF00", "#FFCC00", "#FF9900",
-        "#D55500", "#FFBBFF", "#FF2B80", "#8000AA"
+        "#ffffff00", "#D5FFFF", "#00D5FF", "#0080AA", "#0000B3",
+        "#80FF55", "#00CC7F", "#558000", "#005500", "#FFFF00",
+        "#FFCC00", "#FF9900", "#D55500", "#FFBBFF", "#FF2B80", "#8000AA"
     ])
-    bounds = [0, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+
+    bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
     norm = BoundaryNorm(bounds, cmap.N)
 
     # Plota os municípios coloridos de acordo com a precipitação
@@ -197,6 +224,143 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
 
     st.pyplot(fig)
 
+    st.title("Sinópse automotática")
+    municipios_stats = municipios_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
+    maior_chuva_municipio = municipios_stats.iloc[0]["NOME"]
+    maior_chuva_valor = municipios_stats.iloc[0][f"{estatistica_desejada}_precipitation"]
+    maior_chuva_municipio2 = municipios_stats.iloc[1]["NOME"]
+    maior_chuva_valor2 = municipios_stats.iloc[1][f"{estatistica_desejada}_precipitation"]
+    maior_chuva_municipio3 = municipios_stats.iloc[2]["NOME"]
+    maior_chuva_valor3 = municipios_stats.iloc[2][f"{estatistica_desejada}_precipitation"]
+ 
+
+
+    st.write(f"""
+    O município com maior chuva no Estado de São Paulo foi **{maior_chuva_municipio}**, com um total de **{maior_chuva_valor:.2f} mm** de precipitação. Seguido de **{maior_chuva_municipio2}**, com um total de **{maior_chuva_valor2:.2f} mm** de precipitação, e **{maior_chuva_municipio3}**, com um total de **{maior_chuva_valor3:.2f} mm** de precipitação.
+    """)
+
+# Define the function for displaying table and interactive chart
+def exibir_graficos_tabela(url, excluir_prefixos):
+    sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
+    minx, miny, maxx, maxy = sp_border.total_bounds
+
+    sp_border_shapefile = "results/sp_border.shp"
+    sp_border.to_file(sp_border_shapefile)
+
+    # Obtendo dados da API
+    response = requests.get(url)
+    data = response.json()
+
+    # Extraindo coordenadas e valores
+    stations = [
+        (item["prefix"], float(item["latitude"]), float(item["longitude"]), item["value"])
+        for item in data["json"]
+        if item["latitude"] and item["longitude"] and item["value"]
+    ]
+
+    # Filtrando estações
+    filtered_stations = [
+        (lat, lon, value)
+        for prefix, lat, lon, value in stations
+        if prefix not in excluir_prefixos
+    ]
+
+    if not filtered_stations:
+        st.error("Erro: Não há dados válidos para interpolação após a exclusão.")
+        return
+
+    # Separando latitudes, longitudes e valores
+    lats, longs, values = zip(*filtered_stations)
+
+    # Salvando os pontos em um shapefile temporário
+    shapefile_path = "results/temp_points.shp"
+    driver = ogr.GetDriverByName("ESRI Shapefile")
+    dataSource = driver.CreateDataSource(shapefile_path)
+    layer = dataSource.CreateLayer("layer", geom_type=ogr.wkbPoint)
+
+    # Adicionando valores de precipitação
+    layer.CreateField(ogr.FieldDefn("value", ogr.OFTReal))
+    for lat, lon, value in zip(lats, longs, values):
+        point = ogr.Geometry(ogr.wkbPoint)
+        point.AddPoint(lon, lat)
+        feature = ogr.Feature(layer.GetLayerDefn())
+        feature.SetGeometry(point)
+        feature.SetField("value", value)
+        layer.CreateFeature(feature)
+        feature = None
+
+    dataSource = None
+
+    output_raster = f"results/cities_idw_{date_time_id}.tif"
+    gdal.Grid(
+        output_raster,
+        shapefile_path,
+        zfield="value",
+        algorithm=f"invdist:power={power}:smoothing={smoothing}:radius={radius1}",
+        outputBounds=(minx, miny, maxx, maxy),
+        width=1000, height=1000,
+    )
+
+    if not os.path.exists(output_raster):
+        st.error(f"Erro: O raster intermediário {output_raster} não foi criado.")
+        return
+
+    # Definindo sistema de coordenadas EPSG:4326 no raster
+    raster = gdal.Open(output_raster, gdal.GA_Update)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    raster.SetProjection(srs.ExportToWkt())
+    raster = None
+
+    cropped_raster = f"results/cities_idw_cropped_{date_time_id}.tif"
+    gdal.Warp(
+        cropped_raster,
+        output_raster,
+        cutlineDSName=sp_border_shapefile,
+        cropToCutline=True,
+        dstNodata=np.nan,
+    )
+
+    # Zonal stats
+    stats = zonal_stats(sp_border, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
+    
+    crs = {'init': 'epsg:4326'}
+    municipios_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
+    municipios_stats = municipios_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
+
+    # Converte os dados de precipitação para tipo float, preenchendo NaNs com zero
+    municipios_stats[f"{estatistica_desejada}_precipitation"] = pd.to_numeric(
+        municipios_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
+    ).fillna(0)
+
+    municipios_stats = municipios_stats.rename(
+        columns={
+            "NOME": "Município",
+            f"{estatistica_desejada}_precipitation": "Precipitação (mm)"
+        }
+    )    
+    municipios_stats = municipios_stats.sort_values(
+        by="Precipitação (mm)",
+        ascending=False  # Set to False for descending order
+    )
+
+    # Display the data table
+    st.write("Tabela Municípios")
+    st.dataframe(
+        municipios_stats[["Município", "Precipitação (mm)"]], 
+        hide_index=True
+    )
+    # Create and display an interactive bar chart
+    st.write("Gráfico Estações")
+    fig = px.bar(
+        municipios_stats,
+        x="Município",
+        y="Precipitação (mm)",
+        labels={"Precipitação (mm)": "Precipitação (mm)"},
+        title="Precipitação por Municípios",
+    )
+    st.plotly_chart(fig)
+
 
 # Entradas do usuário
 hoje = datetime.now()
@@ -219,4 +383,7 @@ st.write(f"Estatística selecionada para cálculo de precipitação: **{estatist
 # Chamar função com o botão
 if st.button("Gerar Mapa"):
     gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id)
+
+if st.button("Gerar Tabela e Gráfico"):
+    exibir_graficos_tabela(url, excluir_prefixos)
 

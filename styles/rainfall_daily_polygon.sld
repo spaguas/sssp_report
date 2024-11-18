@@ -11,11 +11,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>0</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>1</Literal>
               </PropertyIsLessThan>
             </And>
@@ -36,11 +36,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>1</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>2</Literal>
               </PropertyIsLessThan>
             </And>
@@ -61,11 +61,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>2</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>5</Literal>
               </PropertyIsLessThan>
             </And>
@@ -86,11 +86,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>5</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>7</Literal>
               </PropertyIsLessThan>
             </And>
@@ -111,11 +111,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>7</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>10</Literal>
               </PropertyIsLessThan>
             </And>
@@ -136,11 +136,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>10</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>15</Literal>
               </PropertyIsLessThan>
             </And>
@@ -161,11 +161,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>15</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>20</Literal>
               </PropertyIsLessThan>
             </And>
@@ -186,11 +186,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>20</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>25</Literal>
               </PropertyIsLessThan>
             </And>
@@ -211,11 +211,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>25</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>30</Literal>
               </PropertyIsLessThan>
             </And>
@@ -236,11 +236,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>30</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>40</Literal>
               </PropertyIsLessThan>
             </And>
@@ -261,11 +261,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>40</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>50</Literal>
               </PropertyIsLessThan>
             </And>
@@ -286,11 +286,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>50</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>75</Literal>
               </PropertyIsLessThan>
             </And>
@@ -311,11 +311,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>75</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>100</Literal>
               </PropertyIsLessThan>
             </And>
@@ -336,11 +336,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>100</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThan>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>150</Literal>
               </PropertyIsLessThan>
             </And>
@@ -361,11 +361,11 @@
           <Filter xmlns="http://www.opengis.net/ogc">
             <And>
               <PropertyIsGreaterThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>150</Literal>
               </PropertyIsGreaterThanOrEqualTo>
               <PropertyIsLessThanOrEqualTo>
-                <PropertyName>rain_mean</PropertyName>
+                <PropertyName>rain</PropertyName>
                 <Literal>250</Literal>
               </PropertyIsLessThanOrEqualTo>
             </And>
