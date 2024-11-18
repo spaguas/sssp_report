@@ -12,6 +12,8 @@ dependencies:
   - psycopg2
   - streamlit
   - pip
+  - pip:
+    - rasterstats
   - geopandas
   - plotly
   - rasterstats
