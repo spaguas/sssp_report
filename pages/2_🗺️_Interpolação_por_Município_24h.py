@@ -224,7 +224,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
 
     st.pyplot(fig)
 
-    st.title("Sinópse automotática")
+    st.title("Sinópse automática")
     municipios_stats = municipios_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
     maior_chuva_municipio = municipios_stats.iloc[0]["NOME"]
     maior_chuva_valor = municipios_stats.iloc[0][f"{estatistica_desejada}_precipitation"]
@@ -234,10 +234,13 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     maior_chuva_valor3 = municipios_stats.iloc[2][f"{estatistica_desejada}_precipitation"]
  
 
+    if maior_chuva_valor < 3:
+        st.write('O Estado de São Paulo não possui chuvas expressivas nas últimas 24 horas.')
 
-    st.write(f"""
-    O município com maior chuva no Estado de São Paulo foi **{maior_chuva_municipio}**, com um total de **{maior_chuva_valor:.2f} mm** de precipitação. Seguido de **{maior_chuva_municipio2}**, com um total de **{maior_chuva_valor2:.2f} mm** de precipitação, e **{maior_chuva_municipio3}**, com um total de **{maior_chuva_valor3:.2f} mm** de precipitação.
-    """)
+    else:
+        st.write(f"""
+        O município com maior chuva no Estado de São Paulo foi **{maior_chuva_municipio}**, com um total de **{maior_chuva_valor:.2f} mm** de precipitação. Seguido de **{maior_chuva_municipio2}**, com um total de **{maior_chuva_valor2:.2f} mm**, e **{maior_chuva_municipio3}**, com um total de **{maior_chuva_valor3:.2f} mm**.
+        """)
 
 # Define the function for displaying table and interactive chart
 def exibir_graficos_tabela(url, excluir_prefixos):

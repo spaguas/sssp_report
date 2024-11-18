@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd 
 import plotly.express as px
-import streamlit as st
 import geopandas as gpd
 from osgeo import gdal, ogr, osr
 import requests
