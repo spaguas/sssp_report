@@ -15,24 +15,24 @@ st.title("Interpolação Personalizada contínuo")
 
 st.sidebar.image('data/logo.png')
 
-data_inicial = st.date_input("Escolha a data inicial:", value=datetime.today())
-hora_inicial = st.time_input("Escolha a hora inicial:", value=time(7, 0))  # Hora padrão fixa para 07:00
+data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
+hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
 
 # Combina a data e a hora selecionada em um único objeto datetime
 data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
 
 # Exibe o datetime combinado para confirmar a seleção
-st.write("Data e Hora Iniciais Selecionadas:", data_hora_inicial)
+st.write("Data e Hora Finais Selecionadas:", data_hora_inicial)
 
 # Formatação para construir a URL
 data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
 hora_inicial_str = data_hora_inicial.strftime('%H:%M')
 
 # Escolha do intervalo de horas
-horas = st.number_input("Quantidade de horas para acumulação de chuva:", min_value=1, max_value=24*31, value=2)
+horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, max_value=24*31, value=2)
 
 data_hora_final = data_hora_inicial - timedelta(hours=horas)
-st.write("Data e Hora Finais Selecionadas:", data_hora_final)
+st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
 
 
 # Recebe o valor digitado no `st.text_input` como entrada do usuário
@@ -67,7 +67,7 @@ radius = st.slider(
 
 # Construção da URL com os parâmetros
 url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true'
-titulo = f"Acumulado de chuvas de {data_hora_inicial} à {data_hora_final}"
+titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
 
 date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
 

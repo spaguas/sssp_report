@@ -123,6 +123,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
         algorithm=f"invdist:power={power}:smoothing={smoothing}:radius={radius1}",
         outputBounds=(minx, miny, maxx, maxy),
         width=1000, height=1000,
+        #options=["noData=-9999"]  # Defina um noData explícito diferente de zero
     )
 
     if not os.path.exists(output_raster):
@@ -183,16 +184,23 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
     norm = BoundaryNorm(bounds, cmap.N)
 
-    # Plota os municípios coloridos de acordo com a precipitação
+
     municipios_stats.plot(
         column=f"{estatistica_desejada}_precipitation",
         cmap=cmap,
-        norm=norm,
-        legend=True,
-        legend_kwds={'label': "Precipitação (mm)", 'orientation': "horizontal", 'shrink': 0.75, 'pad': 0.05},
-        ax=ax
+        linewidth=0.3,
+        edgecolor="black",
+        legend=False,
+        ax=ax,
+        norm=norm
     )
 
+    # Adicionar o colorbar manualmente
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", label="Precipitação (mm)", shrink=0.75, pad=0.05, extend='max')
+    cbar.set_ticks(bounds)
+    cbar.set_ticklabels([str(b) for b in bounds])
     sp_border.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
 
     logo_path = "./data/logo.png"
@@ -222,6 +230,10 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     ax.grid(which='both', linestyle='-', linewidth=0.5, color='gray', alpha=0.6)
     ax.tick_params(axis='both', which='major', labelsize=8)
 
+
+    # Salvar a figura gerada
+    mun_figure_path = f"./results/mun_figure_{hoje_format}.png"
+    plt.savefig(mun_figure_path)    
     st.pyplot(fig)
 
     st.title("Sinópse automática")
