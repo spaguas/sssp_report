@@ -20,7 +20,7 @@ import plotly.express as px
 load_dotenv()
 
 st.set_page_config(layout="wide")
-st.title('Interpolação IDW por município')
+st.title('Interpolação IDW por Região Administrativa - Defesa Civil (CEDEC)')
 
 st.sidebar.image('data/logo.png')
 
@@ -87,11 +87,11 @@ st.write("Intervalo selecionado:", str(selected_bounds))
 
 def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
-    sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
-    minx, miny, maxx, maxy = sp_border.total_bounds
+    cedec = gpd.read_file('./data/cedec2.shp', encoding='ISO-8859-1').to_crs(epsg=4326)
+    minx, miny, maxx, maxy = cedec.total_bounds
 
-    sp_border_shapefile = "results/sp_border.shp"
-    sp_border.to_file(sp_border_shapefile)
+    cedec_shapefile = "results/cedec.shp"
+    cedec.to_file(cedec_shapefile)
 
     # Obtendo dados da API
     response = requests.get(url)
@@ -137,7 +137,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
 
     dataSource = None
 
-    output_raster = f"results/cities_idw_{date_time_id}.tif"
+    output_raster = f"results/cedec_idw_{date_time_id}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,
@@ -159,29 +159,29 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     raster.SetProjection(srs.ExportToWkt())
     raster = None
 
-    cropped_raster = f"results/cities_idw_cropped_{date_time_id}.tif"
+    cropped_raster = f"results/cedec_idw_cropped_{date_time_id}.tif"
     gdal.Warp(
         cropped_raster,
         output_raster,
-        cutlineDSName=sp_border_shapefile,
+        cutlineDSName=cedec_shapefile,
         cropToCutline=True,
         dstNodata=np.nan,
     )
 
     # Zonal stats
-    stats = zonal_stats(sp_border, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
+    stats = zonal_stats(cedec, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
     
     crs = {'init': 'epsg:4326'}
-    municipios_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
-    municipios_stats = municipios_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
+    cedec_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
+    cedec_stats = cedec_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
 
     # Converte os dados de precipitação para tipo float, preenchendo NaNs com zero
-    municipios_stats[f"{estatistica_desejada}_precipitation"] = pd.to_numeric(
-        municipios_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
+    cedec_stats[f"{estatistica_desejada}_precipitation"] = pd.to_numeric(
+        cedec_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
     ).fillna(0)
 
-    municipios_stats_shp = municipios_stats.rename(columns={f"{estatistica_desejada}_precipitation": "rain"})
-    municipios_stats_shp.to_file(f"./results/acumulado_24_mun_{ontem.strftime('%Y-%m-%d')}.shp", driver="ESRI Shapefile")
+    cedec_stats_shp = cedec_stats.rename(columns={f"{estatistica_desejada}_precipitation": "rain"})
+    cedec_stats_shp.to_file(f"./results/acumulado_24_mun_{ontem.strftime('%Y-%m-%d')}.shp", driver="ESRI Shapefile")
 
 
     # Make upload to Geodados
@@ -194,7 +194,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
         }, "styles/rainfall_daily_polygon.sld")
 
 
-    # Plot do resultado usando municipios_stats
+    # Plot do resultado usando cedec_stats
     fig, ax = plt.subplots(figsize=(18, 12))
 
     cmap = ListedColormap([
@@ -207,7 +207,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     norm = BoundaryNorm(selected_bounds, cmap.N)
 
 
-    municipios_stats.plot(
+    cedec_stats.plot(
         column=f"{estatistica_desejada}_precipitation",
         cmap=cmap,
         linewidth=0.3,
@@ -223,7 +223,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     cbar = fig.colorbar(sm, ax=ax, orientation="horizontal", label="Precipitação (mm)", shrink=0.75, pad=0.05, extend='max')
     cbar.set_ticks(selected_bounds)
     cbar.set_ticklabels([str(b) for b in selected_bounds])
-    sp_border.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
+    cedec.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
 
     logo_path = "./data/logo.png"
     if os.path.exists(logo_path):
@@ -259,13 +259,13 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
     st.pyplot(fig)
 
     st.title("Sinópse automática")
-    municipios_stats = municipios_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
-    maior_chuva_municipio = municipios_stats.iloc[0]["NOME"]
-    maior_chuva_valor = municipios_stats.iloc[0][f"{estatistica_desejada}_precipitation"]
-    maior_chuva_municipio2 = municipios_stats.iloc[1]["NOME"]
-    maior_chuva_valor2 = municipios_stats.iloc[1][f"{estatistica_desejada}_precipitation"]
-    maior_chuva_municipio3 = municipios_stats.iloc[2]["NOME"]
-    maior_chuva_valor3 = municipios_stats.iloc[2][f"{estatistica_desejada}_precipitation"]
+    cedec_stats = cedec_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
+    maior_chuva_cedec = cedec_stats.iloc[0]["Nome"]
+    maior_chuva_valor = cedec_stats.iloc[0][f"{estatistica_desejada}_precipitation"]
+    maior_chuva_cedec2 = cedec_stats.iloc[1]["Nome"]
+    maior_chuva_valor2 = cedec_stats.iloc[1][f"{estatistica_desejada}_precipitation"]
+    maior_chuva_cedec3 = cedec_stats.iloc[2]["Nome"]
+    maior_chuva_valor3 = cedec_stats.iloc[2][f"{estatistica_desejada}_precipitation"]
  
 
     if maior_chuva_valor < 3:
@@ -273,16 +273,16 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos, date_time_id):
 
     else:
         st.write(f"""
-        O município com maior chuva no Estado de São Paulo foi **{maior_chuva_municipio}**, com um total de **{maior_chuva_valor:.2f} mm** de precipitação. Seguido de **{maior_chuva_municipio2}**, com um total de **{maior_chuva_valor2:.2f} mm**, e **{maior_chuva_municipio3}**, com um total de **{maior_chuva_valor3:.2f} mm**.
+        A Região Administrativa com maior chuva no Estado de São Paulo, a partir da estatística "{estatistica_desejada}", foi **{maior_chuva_cedec}**, com um total de **{maior_chuva_valor:.2f} mm** de precipitação. Seguido de **{maior_chuva_cedec2}**, com um total de **{maior_chuva_valor2:.2f} mm**, e **{maior_chuva_cedec3}**, com um total de **{maior_chuva_valor3:.2f} mm**.
         """)
 
 # Define the function for displaying table and interactive chart
 def exibir_graficos_tabela(url, excluir_prefixos):
-    sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
-    minx, miny, maxx, maxy = sp_border.total_bounds
+    cedec = gpd.read_file('./data/cedec2.shp', encoding='ISO-8859-1').to_crs(epsg=4326)
+    minx, miny, maxx, maxy = cedec.total_bounds
 
-    sp_border_shapefile = "results/sp_border.shp"
-    sp_border.to_file(sp_border_shapefile)
+    cedec_shapefile = "results/cedec2.shp"
+    cedec.to_file(cedec_shapefile)
 
     # Obtendo dados da API
     response = requests.get(url)
@@ -328,7 +328,7 @@ def exibir_graficos_tabela(url, excluir_prefixos):
 
     dataSource = None
 
-    output_raster = f"results/cities_idw_{date_time_id}.tif"
+    output_raster = f"results/cedec_idw_{date_time_id}.tif"
     gdal.Grid(
         output_raster,
         shapefile_path,
@@ -349,52 +349,53 @@ def exibir_graficos_tabela(url, excluir_prefixos):
     raster.SetProjection(srs.ExportToWkt())
     raster = None
 
-    cropped_raster = f"results/cities_idw_cropped_{date_time_id}.tif"
+    cropped_raster = f"results/cedec_idw_cropped_{date_time_id}.tif"
     gdal.Warp(
         cropped_raster,
         output_raster,
-        cutlineDSName=sp_border_shapefile,
+        cutlineDSName=cedec_shapefile,
         cropToCutline=True,
         dstNodata=np.nan,
     )
 
     # Zonal stats
-    stats = zonal_stats(sp_border, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
+    stats = zonal_stats(cedec, cropped_raster, stats=[estatistica_desejada], geojson_out=True)
     
     crs = {'init': 'epsg:4326'}
-    municipios_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
-    municipios_stats = municipios_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
+    cedec_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
+    cedec_stats = cedec_stats.rename(columns={estatistica_desejada: f"{estatistica_desejada}_precipitation"})
 
     # Converte os dados de precipitação para tipo float, preenchendo NaNs com zero
-    municipios_stats[f"{estatistica_desejada}_precipitation"] = pd.to_numeric(
-        municipios_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
+    cedec_stats[f"{estatistica_desejada}_precipitation"] = pd.to_numeric(
+        cedec_stats[f"{estatistica_desejada}_precipitation"], errors='coerce'
     ).fillna(0)
 
-    municipios_stats = municipios_stats.rename(
+    cedec_stats = cedec_stats.rename(
         columns={
-            "NOME": "Município",
+            "Nome": "Região Administrativa",
             f"{estatistica_desejada}_precipitation": "Precipitação (mm)"
         }
     )    
-    municipios_stats = municipios_stats.sort_values(
+    cedec_stats = cedec_stats.sort_values(
         by="Precipitação (mm)",
         ascending=False  # Set to False for descending order
     )
 
     # Display the data table
-    st.write("Tabela Municípios")
+    st.write("Tabela CEDEC")
+    
     st.dataframe(
-        municipios_stats[["Município", "Precipitação (mm)"]], 
+        cedec_stats[["Região Administrativa", "Precipitação (mm)"]], 
         hide_index=True
     )
     # Create and display an interactive bar chart
     st.write("Gráfico Estações")
     fig = px.bar(
-        municipios_stats,
-        x="Município",
+        cedec_stats,
+        x="Região Administrativa",
         y="Precipitação (mm)",
         labels={"Precipitação (mm)": "Precipitação (mm)"},
-        title="Precipitação por Municípios",
+        title="Precipitação por Região Administrativa - CEDEC",
     )
     st.plotly_chart(fig)
 
