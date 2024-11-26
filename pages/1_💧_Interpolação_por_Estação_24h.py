@@ -55,7 +55,7 @@ smoothing = st.slider(
 
 radius = st.slider(
     "Radius (raio de influência)",
-    min_value=0.0, max_value=10.0, value=10.0, step=0.1,
+    min_value=0.0, max_value=5.0, value=0.5, step=0.1,
     help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência. 10km de buffer corresponde a 0,1"
 )
 
@@ -71,6 +71,29 @@ date_time_id = ontem.strftime("%Y%m%d%H%M")
 
 url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours=24&from_date={hoje_format}T07%3A00&show_all=true'
 titulo = f"Acumulado de chuvas 24H\n07:00h de {ontem_format} às 07h de {hoje_format}"
+
+# Definição dos limites
+bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
+bounds2 = [0, 5, 10, 15, 20, 30, 40, 50, 100, 125, 150, 200, 250, 300, 350]
+
+# Dicionário de opções
+options = {
+    "Opção recomendada para períodos secos": bounds,
+    "Opção recomendada para períodos chuvosos": bounds2,
+}
+
+
+# Interface do Streamlit para seleção do intervalo
+selected_option = st.radio(
+    "Selecione o intervalo de cores",
+    list(options.keys()),  # Mostra as opções do dicionário
+)
+
+# Obter o intervalo selecionado com base na escolha
+selected_bounds = options[selected_option]
+
+# Exibir o intervalo selecionado
+st.write("Intervalo selecionado:", str(selected_bounds))
 
 
 # Define the function for displaying table and interactive chart
@@ -239,17 +262,18 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         "#80FF55", "#00CC7F", "#558000", "#005500", "#FFFF00",
         "#FFCC00", "#FF9900", "#D55500", "#FFBBFF", "#FF2B80", "#8000AA"
     ])
+    
 
-    bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
-    norm = BoundaryNorm(bounds, cmap.N)
+    norm = BoundaryNorm(selected_bounds, cmap.N)
+
 
     img = ax.imshow(raster_data, cmap=cmap, extent=(minx, maxx, miny, maxy), norm=norm)
 
     sp_border.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
 
     cbar = fig.colorbar(img, ax=ax, orientation="horizontal", label="Precipitação (mm)", shrink=0.75, pad=0.05, extend='max')
-    cbar.set_ticks(bounds)
-    cbar.set_ticklabels([str(b) for b in bounds])
+    cbar.set_ticks(selected_bounds)
+    cbar.set_ticklabels([str(b) for b in selected_bounds])
     cbar.ax.tick_params(labelsize=12)
 
     logo_path = "./data/logo.png"
