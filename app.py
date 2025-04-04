@@ -18,6 +18,7 @@ import plotly.express as px
 load_dotenv()
 
 def gerar_mapa_chuva(url, titulo, excluir_prefixos):
+    print("Gerando mapa")
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
     sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
     minx, miny, maxx, maxy = sp_border.total_bounds
@@ -28,6 +29,8 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     # Obtendo dados da API
     response = requests.get(url)
     data = response.json()
+
+    print("Dados do SIBH obtidos")
 
     # Extraindo coordenadas e valores
     stations = [
@@ -56,6 +59,8 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     dataSource = driver.CreateDataSource(shapefile_path)
     layer = dataSource.CreateLayer("layer", geom_type=ogr.wkbPoint)
 
+    print(f"Salvando pontos em shapefile temporário: {shapefile_path}")
+
     # Adicionando valores de precipitação
     layer.CreateField(ogr.FieldDefn("value", ogr.OFTReal))
     for lat, lon, value in zip(lats, longs, values):
@@ -66,18 +71,25 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         feature.SetField("value", value)
         layer.CreateFeature(feature)
         feature = None
+    
+    print(f"Valores de precipitação adicionados...Qtd.{len(values)}")
 
     dataSource = None
 
     output_raster = f"results/raster_idw_{date_time_id}.tif"
+    options = f"invdist:power={power}:smoothing={smoothing}:radius={radius}"
+
+    print(f"Parâmetros: {options}")
     gdal.Grid(
         output_raster,
         shapefile_path,
         zfield="value",
-        algorithm=f"invdist:power={power}:smoothing={smoothing}:radius={radius}",
+        algorithm=options,
         outputBounds=(minx, miny, maxx, maxy),
         width=1000, height=1000,
     )
+
+    print(f"Interpolação de dados concluída: {datetime.now}")
 
     if not os.path.exists(output_raster):
         st.error("Erro: O raster intermediário não foi criado.")
@@ -98,6 +110,8 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
         cropToCutline=True,
         dstNodata=np.nan,
     )
+
+    print(f"Recortando resultado por limite")
 
     if not os.path.exists(cropped_raster):
         st.error("Erro: O raster recortado não pôde ser criado.")
@@ -124,6 +138,8 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
 
     img = ax.imshow(raster_data, cmap=cmap, extent=(minx, maxx, miny, maxy), norm=norm)
     sp_border.plot(ax=ax, edgecolor='black', facecolor='none', linewidth=0.3)
+
+    print("Plotando imagem do mapa gerado")
 
     logo_path = "./data/logo.png"
     if os.path.exists(logo_path):
@@ -159,6 +175,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     ax.tick_params(axis='both', which='major', labelsize=8)
 
     st.pyplot(fig)
+    print(f"Imagem do mapa gerada e salva")
 
 
 def gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, get_data, data_shapefile, arquivo, estatistica_desejada):
@@ -245,6 +262,8 @@ def gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, get_
 
     # Zonal stats
     stats = zonal_stats(get_data, output_raster, stats=[estatistica_desejada], geojson_out=True)
+
+    print(f"Calculando estatísticas zonais")
     
     crs = {'init': 'epsg:4326'}
     data_stats = gpd.GeoDataFrame.from_features(stats, crs=crs)
@@ -575,6 +594,7 @@ option = st.selectbox(
 data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
 hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
 
+
 # Combina a data e a hora selecionada em um único objeto datetime
 data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
 
@@ -586,6 +606,9 @@ hora_inicial_str = data_hora_inicial.strftime('%H:%M')
 horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, value=24)
 
 data_hora_final = data_hora_inicial - timedelta(hours=horas)
+
+print("Tentando gerar o mapa no período: {data_hora_inicial} até {data_hora_final}")
+
 
 # Exibe o datetime combinado para confirmar a seleção
 st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
