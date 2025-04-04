@@ -7,3 +7,8 @@ services:
     ports:
       - 8501:8501
     #command: streamlit run app.py --server.port 8501
+    volumes:
+      - ./results:/usr/src/app/results
+      - ./data:/usr/src/app/data
+      - ./styles:/usr/src/app/styles
+
