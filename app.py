@@ -35,7 +35,7 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     # Extraindo coordenadas e valores
     stations = [
         (item["prefix"], float(item["latitude"]), float(item["longitude"]), item["value"])
-        for item in data["json"]
+        for item in data["measurements"]
         if item["latitude"] and item["longitude"] and item["value"]
     ]
 
@@ -191,7 +191,7 @@ def gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, get_
     # Extraindo coordenadas e valores
     stations = [
         (item["prefix"], float(item["latitude"]), float(item["longitude"]), item["value"])
-        for item in data["json"]
+        for item in data["measurements"]
         if item["latitude"] and item["longitude"] and item["value"]
     ]
 
@@ -539,7 +539,7 @@ def exibir_graficos_tabela_continuo(url, excluir_prefixos):
             float(item["longitude"]),
             item["value"],
         )
-        for item in data["json"]
+        for item in data["measurements"]
         if item["latitude"] and item["longitude"] and item["value"]
     ]
 
@@ -677,7 +677,7 @@ selected_bounds = options[selected_option]
 # Exibir o intervalo selecionado
 st.write("Intervalo selecionado:", str(selected_bounds))
 
-url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true'
+url = f'https://cth.daee.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=24&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true&public=true'
 titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
 
 opcoes_estatistica = ["mean", "max", "median", "majority"]
@@ -777,7 +777,7 @@ if option == "Personalizado":
     ).strip()
 
     # Construção da URL com os parâmetros
-    url = f'https://cth.daee.sp.gov.br/sibh/api/v1/measurements/last_hours_events?hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true'
+    url = f'https://cth.daee.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=24&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true&public=true'
     titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
 
     date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
