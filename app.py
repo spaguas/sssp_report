@@ -653,6 +653,7 @@ if excluir_prefixos:
     prefixos_para_excluir = [prefixo.strip() for prefixo in excluir_prefixos.split(",")]
     st.write(f"Prefixos a serem excluídos: {prefixos_para_excluir}")
 else:
+    prefixos_para_excluir = []
     st.write("Nenhum prefixo excluído.")
 
 # Definição dos limites
@@ -679,7 +680,7 @@ st.write("Intervalo selecionado:", str(selected_bounds))
 
 url = f'https://cth.daee.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true&public=true&force=true'
 titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
-print (url)
+
 opcoes_estatistica = ["mean", "max", "median", "majority"]
 
 
@@ -695,8 +696,8 @@ if option == "Estação":
     st.write('Interpolação por estações nas ultimas 24h')
 
     if st.button("Gerar Mapa e Gráficos"):
-        gerar_mapa_chuva(url, titulo, excluir_prefixos)
-        exibir_graficos_tabela_continuo(url, excluir_prefixos)
+        gerar_mapa_chuva(url, titulo, prefixos_para_excluir)
+        exibir_graficos_tabela_continuo(url, prefixos_para_excluir)
 
 
 if option == "Município":
@@ -708,7 +709,7 @@ if option == "Município":
 
     # Chamar função com o botão
     if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, sp_border, sp_border_shapefile, municipio_arquivo, estatistica_desejada)
+        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, sp_border, sp_border_shapefile, municipio_arquivo, estatistica_desejada)
 
 
 if option == "CEDEC":
@@ -720,7 +721,7 @@ if option == "CEDEC":
 
     # Chamar função com o botão
     if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, cedec, cedec_shapefile, cedec_arquivo, estatistica_desejada)
+        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, cedec, cedec_shapefile, cedec_arquivo, estatistica_desejada)
 
 
 if option == 'Ugrhi':
@@ -732,7 +733,7 @@ if option == 'Ugrhi':
 
     # Chamar função com o botão
     if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
+        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
 
 if option == 'Subugrhi':
     st.write(f'Interpolação por Subugrhi de {data_hora_final} à {data_hora_inicial}')
@@ -743,7 +744,7 @@ if option == 'Subugrhi':
 
     # Chamar função com o botão
     if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
+        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
 
 
 if option == "Personalizado":
