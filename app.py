@@ -14,6 +14,7 @@ from rasterstats import zonal_stats
 from dotenv import load_dotenv
 import functions.geodados as geodados
 import plotly.express as px
+import psycopg2 as pg
 
 load_dotenv()
 
@@ -178,22 +179,31 @@ def gerar_mapa_chuva(url, titulo, excluir_prefixos):
     print(f"Imagem do mapa gerada e salva")
 
 
-def gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, get_data, data_shapefile, arquivo, estatistica_desejada):
+def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_time_id, get_data, data_shapefile, arquivo, estatistica_desejada, url):
     # Carregando a fronteira do estado de São Paulo e criando um shapefile temporário
     minx, miny, maxx, maxy = get_data.total_bounds
 
     get_data.to_file(data_shapefile)
 
-    # Obtendo dados da API
-    response = requests.get(url)
-    data = response.json()
+    if url:
+        # Obtendo dados da API
+        response = requests.get(url)
+        data = response.json()
 
-    # Extraindo coordenadas e valores
-    stations = [
-        (item["prefix"], float(item["latitude"]), float(item["longitude"]), item["value"])
-        for item in data["measurements"]
-        if item["latitude"] and item["longitude"] and item["value"]
-    ]
+        # Extraindo coordenadas e valores
+        stations = [
+            (item["prefix"], float(item["latitude"]), float(item["longitude"]), item["value"])
+            for item in data["measurements"]
+            if item["latitude"] and item["longitude"] and item["value"]
+        ]
+    else:
+
+        df_valid = data_monitor_df.dropna(subset=["latitude", "longitude", "value"])
+        stations = [
+            (row["prefix"], float(row["latitude"]), float(row["longitude"]), float(row["value"]))
+            for _, row in df_valid.iterrows()
+            if row["prefix"] not in excluir_prefixos
+        ]
 
     # Filtrando estações
     filtered_stations = [
@@ -332,9 +342,11 @@ def gerar_mapa_chuva_shapefile(url, titulo, excluir_prefixos, date_time_id, get_
     ax.set_title(f'{titulo}', fontsize=14)
     ax.grid(which='both', linestyle='-', linewidth=0.5, color='gray', alpha=0.6)
     ax.tick_params(axis='both', which='major', labelsize=8)
+    # data_hora_inicial = data_monitor_df['data_inicial'].iloc[0]
+    # data_inicial_str = data_hora_inicial.strftime("%Y-%m-%d")
 
     # Salvar a figura gerada
-    mun_figure_path = f"./results/mun_figure_{data_inicial_str}.png"
+    mun_figure_path = f"./results/mun_figure.png"
     plt.savefig(mun_figure_path)    
     st.pyplot(fig)
 
@@ -578,6 +590,53 @@ def exibir_graficos_tabela_continuo(url, excluir_prefixos):
     )
     st.plotly_chart(fig)
 
+
+def conection_postgres():
+    host = os.environ.get('DATABASE_HOST')
+    port = os.environ.get('DATABASE_PORT')
+    user = os.environ.get('DATABASE_USER')
+    password = os.environ.get('DATABASE_PASSWORD')
+    database = os.environ.get('DATABASE_NAME')    
+
+    conn = pg.connect(
+        host=host,
+        database=database,
+        user=user,
+        password=password
+    )
+    return conn.cursor()
+
+def execute_query(query):
+    cur = conection_postgres()
+    conn = cur.connection
+    try:
+        cur.execute(query)
+        rows = cur.fetchall()
+        
+        colunas = [desc[0] for desc in cur.description]
+        df = pd.DataFrame(rows, columns=colunas)
+
+        return df
+
+    except Exception as e:
+        print(f"Erro ao executar a query: {e}")
+        return None
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+def get_data_chuva():
+
+    query = f"""SELECT * FROM rain_acumulated_last_month;"""
+        
+    data_monitor_df= execute_query(query)
+
+    return data_monitor_df
+
 # Parâmetros de entrada do usuário no Streamlit
 st.title("Geração dos mapas interpolados dos pluviômetros")
 
@@ -586,202 +645,77 @@ st.write("""Esta ferramenta tem como objetivo realizar a interpolação da chuva
             Os resultados podem ser plotados de forma contínua ou agregados por município a partir de estatística escolhida (máxima, média, mediana ou moda)""")
 
 
-option = st.selectbox(
-    "Escolha o tipo de Interpolação:",
-    ("Município", "Estação", "CEDEC", "Ugrhi", "Subugrhi"),
-)
+if st.button("Gerar Mapa Mensal"):
+    st.session_state.modo = "mensal"
 
-data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
-hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
+if st.button("Gerar Mapa Horário"):
+    st.session_state.modo = "horario"
 
+if "modo" not in st.session_state:
+    st.session_state.modo = None
 
-# Combina a data e a hora selecionada em um único objeto datetime
-data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
+if st.session_state.modo == "mensal":
+    option = st.selectbox(
+        "Escolha o tipo de Interpolação:",
+        ("Município", "CEDEC", "Ugrhi", "Subugrhi"),
+    )
+    data_monitor_df = get_data_chuva()
+    url = None
+    data_hora_inicial = data_monitor_df['data_inicial'].iloc[0]
+    data_hora_final = data_monitor_df['data_final'].iloc[0]
 
-# Formatação para construir a URL
-data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
-hora_inicial_str = data_hora_inicial.strftime('%H:%M')
-
-# Escolha do intervalo de horas
-horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, value=24)
-
-data_hora_final = data_hora_inicial - timedelta(hours=horas)
-
-print(f"Tentando gerar o mapa no período: {data_hora_inicial} até {data_hora_final}")
-
-
-# Exibe o datetime combinado para confirmar a seleção
-st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
-st.write("Data e Hora Finais Selecionadas:", data_hora_inicial)
-
-date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
-
-# Sliders para ajustar parâmetros da interpolação IDW
-st.subheader("Parâmetros da Interpolação IDW")
-
-power = st.slider(
-    "Power (potência da interpolação)",
-    min_value=0.0, max_value=5.0, value=2.0, step=0.1,
-    help="A potência determina o peso da distância na interpolação."
-)
-
-smoothing = st.slider(
-    "Smoothing (suavização)",
-    min_value=0.0, max_value=1.0, value=0.02, step=0.01,
-    help="A suavização reduz a variabilidade na interpolação. Valores maiores tornam o mapa mais suave e menos influenciado por variações locais. Maior generalização"
-)
-
-radius = st.slider(
-    "Radius em km (raio de influência)",
-    min_value=0, max_value=500, value=50, step=1,
-    help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência."
-)
-radius = radius/100
+    
+    data_hora_inicial_str = data_hora_inicial.strftime("%d-%m-%Y %H:%M")
+    data_hora_final_str = data_hora_final.strftime("%d-%m-%Y %H:%M")
 
 
+    print(f"Tentando gerar o mapa no período: {data_hora_inicial} até {data_hora_final}")
 
-# Recebe o valor digitado no `st.text_input` como entrada do usuário
-excluir_prefixos = st.text_input(
-"Digite os prefixos das estações a serem excluídas para remoção de outliers.",
-value="",  # valor inicial vazio
-placeholder="Exemplo: IAC-Ibitinga - SP, 350320801A",
-help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
-).strip()
-
-# Processa a lista de prefixos inseridos, se houver algum
-if excluir_prefixos:
-    prefixos_para_excluir = [prefixo.strip() for prefixo in excluir_prefixos.split(",")]
-    st.write(f"Prefixos a serem excluídos: {prefixos_para_excluir}")
-else:
-    prefixos_para_excluir = []
-    st.write("Nenhum prefixo excluído.")
-
-# Definição dos limites
-bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
-bounds2 = [0, 5, 10, 15, 20, 30, 40, 50, 100, 125, 150, 200, 250, 300, 350]
-
-# Dicionário de opções
-options = {
-    "Opção recomendada para períodos secos": bounds,
-    "Opção recomendada para períodos chuvosos": bounds2,
-}
-
-# Interface do Streamlit para seleção do intervalo
-selected_option = st.radio(
-    "Selecione o intervalo de cores",
-    list(options.keys()),  # Mostra as opções do dicionário
-)
-
-# Obter o intervalo selecionado com base na escolha
-selected_bounds = options[selected_option]
-
-# Exibir o intervalo selecionado
-st.write("Intervalo selecionado:", str(selected_bounds))
-
-url = f'https://cth.daee.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true&public=true&force=true'
-titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
-
-opcoes_estatistica = ["mean", "max", "median", "majority"]
-
-
-estatistica_desejada = st.selectbox(
-    "Escolha a estatística para o cálculo de precipitação:", options=opcoes_estatistica,
-    help="Selecione entre 'max', 'mean', 'median' ou 'majority'."
-)
-st.write(f"Estatística selecionada para cálculo de precipitação: **{estatistica_desejada}**")
-
-
-
-if option == "Estação":
-    st.write('Interpolação por estações nas ultimas 24h')
-
-    if st.button("Gerar Mapa e Gráficos"):
-        gerar_mapa_chuva(url, titulo, prefixos_para_excluir)
-        exibir_graficos_tabela_continuo(url, prefixos_para_excluir)
-
-
-if option == "Município":
-    st.write(f'Interpolação por município de {data_hora_final} à {data_hora_inicial}')
-
-    sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
-    sp_border_shapefile = "results/sp_border.shp"
-    municipio_arquivo = 'cities_idw'
-
-    # Chamar função com o botão
-    if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, sp_border, sp_border_shapefile, municipio_arquivo, estatistica_desejada)
-
-
-if option == "CEDEC":
-    st.write(f'Interpolação por  Região Administrativa CEDEC de {data_hora_final} à {data_hora_inicial}')
-
-    cedec = gpd.read_file('./data/cedec2.shp', encoding='ISO-8859-1').to_crs(epsg=4326)
-    cedec_shapefile = "results/cedec.shp"
-    cedec_arquivo = "cedec_idw"
-
-    # Chamar função com o botão
-    if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, cedec, cedec_shapefile, cedec_arquivo, estatistica_desejada)
-
-
-if option == 'Ugrhi':
-    st.write(f'Interpolação por Ugrhi de {data_hora_final} à {data_hora_inicial}')
-
-    ugrhi = gpd.read_file('./data/ugrhi_sp_ipt_2009_gcs_wgs84.shp', encoding='UTF-8').to_crs(epsg=4326)
-    ugrhi_shapefile = "results/ugrhi.shp"
-    ugrhi_arquivo = "ugrhi_idw"
-
-    # Chamar função com o botão
-    if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
-
-if option == 'Subugrhi':
-    st.write(f'Interpolação por Subugrhi de {data_hora_final} à {data_hora_inicial}')
-
-    ugrhi = gpd.read_file('./data/subugrhis_sp.shp', encoding='UTF-8').to_crs(epsg=4326)
-    ugrhi_shapefile = "results/subugrhi.shp"
-    ugrhi_arquivo = "subugrhi_idw"
-
-    # Chamar função com o botão
-    if st.button("Gerar Mapa"):
-        gerar_mapa_chuva_shapefile(url, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada)
-
-
-if option == "Personalizado":
-    st.write('Interpolação Personalizada')
-
-    data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
-    hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
-
-    # Combina a data e a hora selecionada em um único objeto datetime
-    data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
 
     # Exibe o datetime combinado para confirmar a seleção
-    st.write("Data e Hora Finais Selecionadas:", data_hora_inicial)
+    st.write("Data e Hora Iniciais:", data_hora_final)
+    st.write("Data e Hora Finais:", data_hora_inicial)
 
-    # Formatação para construir a URL
-    data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
-    hora_inicial_str = data_hora_inicial.strftime('%H:%M')
+    date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
 
-    # Escolha do intervalo de horas
-    horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, value=24)
+    # Sliders para ajustar parâmetros da interpolação IDW
+    st.subheader("Parâmetros da Interpolação IDW")
 
-    data_hora_final = data_hora_inicial - timedelta(hours=horas)
-    st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
+    power = st.slider(
+        "Power (potência da interpolação)",
+        min_value=0.0, max_value=5.0, value=2.0, step=0.1,
+        help="A potência determina o peso da distância na interpolação."
+    )
+
+    smoothing = st.slider(
+        "Smoothing (suavização)",
+        min_value=0.0, max_value=1.0, value=0.02, step=0.01,
+        help="A suavização reduz a variabilidade na interpolação. Valores maiores tornam o mapa mais suave e menos influenciado por variações locais. Maior generalização"
+    )
+
+    radius = st.slider(
+        "Radius em km (raio de influência)",
+        min_value=0, max_value=500, value=50, step=1,
+        help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência."
+    )
+    radius = radius/100
+
 
     # Recebe o valor digitado no `st.text_input` como entrada do usuário
     excluir_prefixos = st.text_input(
-        "Digite os prefixos das estações a serem excluídas para remoção de outliers.",
-        value="",  # valor inicial vazio
-        placeholder="Exemplo: IAC-Ibitinga - SP, 350320801A",
-        help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
+    "Digite os prefixos das estações a serem excluídas para remoção de outliers.",
+    value="",  # valor inicial vazio
+    placeholder="Exemplo: IAC-Ibitinga - SP, 350320801A",
+    help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
     ).strip()
 
-    # Construção da URL com os parâmetros
-
-    titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
-
-    date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
+    # Processa a lista de prefixos inseridos, se houver algum
+    if excluir_prefixos:
+        prefixos_para_excluir = [prefixo.strip() for prefixo in excluir_prefixos.split(",")]
+        st.write(f"Prefixos a serem excluídos: {prefixos_para_excluir}")
+    else:
+        prefixos_para_excluir = []
+        st.write("Nenhum prefixo excluído.")
 
     # Definição dos limites
     bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
@@ -805,8 +739,291 @@ if option == "Personalizado":
     # Exibir o intervalo selecionado
     st.write("Intervalo selecionado:", str(selected_bounds))
 
-    if st.button("Gerar Mapa"):
-        gerar_mapa_chuva(url, titulo, excluir_prefixos)
+    titulo = f"Acumulado de chuvas de {data_hora_final_str} à {data_hora_inicial_str}"
+
+    opcoes_estatistica = ["mean", "max", "median", "majority"]
+
+
+    estatistica_desejada = st.selectbox(
+        "Escolha a estatística para o cálculo de precipitação:", options=opcoes_estatistica,
+        help="Selecione entre 'max', 'mean', 'median' ou 'majority'."
+    )
+    st.write(f"Estatística selecionada para cálculo de precipitação: **{estatistica_desejada}**")
+
+
+    if option == "Município":
+        st.write(f'Interpolação por município de {data_hora_final} à {data_hora_inicial}')
+
+        sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
+        sp_border_shapefile = "results/sp_border.shp"
+        municipio_arquivo = 'cities_idw'
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, sp_border, sp_border_shapefile, municipio_arquivo, estatistica_desejada, url)
+
+
+    if option == "CEDEC":
+        st.write(f'Interpolação por  Região Administrativa CEDEC de {data_hora_final} à {data_hora_inicial}')
+
+        cedec = gpd.read_file('./data/cedec2.shp', encoding='ISO-8859-1').to_crs(epsg=4326)
+        cedec_shapefile = "results/cedec.shp"
+        cedec_arquivo = "cedec_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, cedec, cedec_shapefile, cedec_arquivo, estatistica_desejada, url)
+
+
+    if option == 'Ugrhi':
+        st.write(f'Interpolação por Ugrhi de {data_hora_final} à {data_hora_inicial}')
+
+        ugrhi = gpd.read_file('./data/ugrhi_sp_ipt_2009_gcs_wgs84.shp', encoding='UTF-8').to_crs(epsg=4326)
+        ugrhi_shapefile = "results/ugrhi.shp"
+        ugrhi_arquivo = "ugrhi_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada, url)
+
+    if option == 'Subugrhi':
+        st.write(f'Interpolação por Subugrhi de {data_hora_final} à {data_hora_inicial}')
+
+        ugrhi = gpd.read_file('./data/subugrhis_sp.shp', encoding='UTF-8').to_crs(epsg=4326)
+        ugrhi_shapefile = "results/subugrhi.shp"
+        ugrhi_arquivo = "subugrhi_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada, url)
+
+
+
+
+if st.session_state.modo == "horario":
+    option = st.selectbox(
+        "Escolha o tipo de Interpolação:",
+        ("Município", "Estação", "CEDEC", "Ugrhi", "Subugrhi"),
+    )
+
+    data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
+    hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
+
+
+    # Combina a data e a hora selecionada em um único objeto datetime
+    data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
+
+    # Formatação para construir a URL
+    data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
+    hora_inicial_str = data_hora_inicial.strftime('%H:%M')
+
+    # Escolha do intervalo de horas
+    horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, value=24)
+
+    data_hora_final = data_hora_inicial - timedelta(hours=horas)
+
+    print(f"Tentando gerar o mapa no período: {data_hora_inicial} até {data_hora_final}")
+
+
+    # Exibe o datetime combinado para confirmar a seleção
+    st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
+    st.write("Data e Hora Finais Selecionadas:", data_hora_inicial)
+
+    date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
+
+    # Sliders para ajustar parâmetros da interpolação IDW
+    st.subheader("Parâmetros da Interpolação IDW")
+
+    power = st.slider(
+        "Power (potência da interpolação)",
+        min_value=0.0, max_value=5.0, value=2.0, step=0.1,
+        help="A potência determina o peso da distância na interpolação."
+    )
+
+    smoothing = st.slider(
+        "Smoothing (suavização)",
+        min_value=0.0, max_value=1.0, value=0.02, step=0.01,
+        help="A suavização reduz a variabilidade na interpolação. Valores maiores tornam o mapa mais suave e menos influenciado por variações locais. Maior generalização"
+    )
+
+    radius = st.slider(
+        "Radius em km (raio de influência)",
+        min_value=0, max_value=500, value=50, step=1,
+        help="O raio determina a distância máxima em torno de cada ponto para considerar na interpolação. Valores maiores aumentam a área de influência."
+    )
+    radius = radius/100
+
+
+
+    # Recebe o valor digitado no `st.text_input` como entrada do usuário
+    excluir_prefixos = st.text_input(
+    "Digite os prefixos das estações a serem excluídas para remoção de outliers.",
+    value="",  # valor inicial vazio
+    placeholder="Exemplo: IAC-Ibitinga - SP, 350320801A",
+    help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
+    ).strip()
+
+    # Processa a lista de prefixos inseridos, se houver algum
+    if excluir_prefixos:
+        prefixos_para_excluir = [prefixo.strip() for prefixo in excluir_prefixos.split(",")]
+        st.write(f"Prefixos a serem excluídos: {prefixos_para_excluir}")
+    else:
+        prefixos_para_excluir = []
+        st.write("Nenhum prefixo excluído.")
+
+    # Definição dos limites
+    bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
+    bounds2 = [0, 5, 10, 15, 20, 30, 40, 50, 100, 125, 150, 200, 250, 300, 350]
+
+    # Dicionário de opções
+    options = {
+        "Opção recomendada para períodos secos": bounds,
+        "Opção recomendada para períodos chuvosos": bounds2,
+    }
+
+    # Interface do Streamlit para seleção do intervalo
+    selected_option = st.radio(
+        "Selecione o intervalo de cores",
+        list(options.keys()),  # Mostra as opções do dicionário
+    )
+
+    # Obter o intervalo selecionado com base na escolha
+    selected_bounds = options[selected_option]
+
+    # Exibir o intervalo selecionado
+    st.write("Intervalo selecionado:", str(selected_bounds))
+
+    url = f'https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours={horas}&from_date={data_inicial_str}T{hora_inicial_str}&show_all=true&public=true&force=true'
+    titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
+
+    data_monitor_df = None
+
+    opcoes_estatistica = ["mean", "max", "median", "majority"]
+
+
+    estatistica_desejada = st.selectbox(
+        "Escolha a estatística para o cálculo de precipitação:", options=opcoes_estatistica,
+        help="Selecione entre 'max', 'mean', 'median' ou 'majority'."
+    )
+    st.write(f"Estatística selecionada para cálculo de precipitação: **{estatistica_desejada}**")
+
+
+
+    if option == "Estação":
+        st.write('Interpolação por estações nas ultimas 24h')
+
+        if st.button("Gerar Mapa e Gráficos"):
+            gerar_mapa_chuva(url, titulo, prefixos_para_excluir)
+            exibir_graficos_tabela_continuo(url, prefixos_para_excluir)
+
+
+    if option == "Município":
+        st.write(f'Interpolação por município de {data_hora_final} à {data_hora_inicial}')
+
+        sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
+        sp_border_shapefile = "results/sp_border.shp"
+        municipio_arquivo = 'cities_idw'
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, sp_border, sp_border_shapefile, municipio_arquivo, estatistica_desejada, url)
+
+
+    if option == "CEDEC":
+        st.write(f'Interpolação por  Região Administrativa CEDEC de {data_hora_final} à {data_hora_inicial}')
+
+        cedec = gpd.read_file('./data/cedec2.shp', encoding='ISO-8859-1').to_crs(epsg=4326)
+        cedec_shapefile = "results/cedec.shp"
+        cedec_arquivo = "cedec_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, cedec, cedec_shapefile, cedec_arquivo, estatistica_desejada, url)
+
+
+    if option == 'Ugrhi':
+        st.write(f'Interpolação por Ugrhi de {data_hora_final} à {data_hora_inicial}')
+
+        ugrhi = gpd.read_file('./data/ugrhi_sp_ipt_2009_gcs_wgs84.shp', encoding='UTF-8').to_crs(epsg=4326)
+        ugrhi_shapefile = "results/ugrhi.shp"
+        ugrhi_arquivo = "ugrhi_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada, url)
+
+    if option == 'Subugrhi':
+        st.write(f'Interpolação por Subugrhi de {data_hora_final} à {data_hora_inicial}')
+
+        ugrhi = gpd.read_file('./data/subugrhis_sp.shp', encoding='UTF-8').to_crs(epsg=4326)
+        ugrhi_shapefile = "results/subugrhi.shp"
+        ugrhi_arquivo = "subugrhi_idw"
+
+        # Chamar função com o botão
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva_shapefile(data_monitor_df, titulo, prefixos_para_excluir, date_time_id, ugrhi, ugrhi_shapefile, ugrhi_arquivo, estatistica_desejada, url)
+
+
+    if option == "Personalizado":
+        st.write('Interpolação Personalizada')
+
+        data_inicial = st.date_input("Escolha a data final:", value=datetime.today())
+        hora_inicial = st.time_input("Escolha a hora final:", value=time(7, 0))  # Hora padrão fixa para 07:00
+
+        # Combina a data e a hora selecionada em um único objeto datetime
+        data_hora_inicial = datetime.combine(data_inicial, hora_inicial)
+
+        # Exibe o datetime combinado para confirmar a seleção
+        st.write("Data e Hora Finais Selecionadas:", data_hora_inicial)
+
+        # Formatação para construir a URL
+        data_inicial_str = data_hora_inicial.strftime('%Y-%m-%d')
+        hora_inicial_str = data_hora_inicial.strftime('%H:%M')
+
+        # Escolha do intervalo de horas
+        horas = st.number_input("Quantidade de horas retroativas para acumulação de chuva:", min_value=1, value=24)
+
+        data_hora_final = data_hora_inicial - timedelta(hours=horas)
+        st.write("Data e Hora Iniciais Selecionadas:", data_hora_final)
+
+        # Recebe o valor digitado no `st.text_input` como entrada do usuário
+        excluir_prefixos = st.text_input(
+            "Digite os prefixos das estações a serem excluídas para remoção de outliers.",
+            value="",  # valor inicial vazio
+            placeholder="Exemplo: IAC-Ibitinga - SP, 350320801A",
+            help="Digite os prefixos separados por vírgula. Consulte os prefixos no site do SIBH."
+        ).strip()
+
+        # Construção da URL com os parâmetros
+
+        titulo = f"Acumulado de chuvas de {data_hora_final} à {data_hora_inicial}"
+
+        date_time_id = data_hora_inicial.strftime("%Y%m%d%H%M")
+
+        # Definição dos limites
+        bounds = [0, 1, 2, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100, 250]
+        bounds2 = [0, 5, 10, 15, 20, 30, 40, 50, 100, 125, 150, 200, 250, 300, 350]
+
+        # Dicionário de opções
+        options = {
+            "Opção recomendada para períodos secos": bounds,
+            "Opção recomendada para períodos chuvosos": bounds2,
+        }
+
+        # Interface do Streamlit para seleção do intervalo
+        selected_option = st.radio(
+            "Selecione o intervalo de cores",
+            list(options.keys()),  # Mostra as opções do dicionário
+        )
+
+        # Obter o intervalo selecionado com base na escolha
+        selected_bounds = options[selected_option]
+
+        # Exibir o intervalo selecionado
+        st.write("Intervalo selecionado:", str(selected_bounds))
+
+        if st.button("Gerar Mapa"):
+            gerar_mapa_chuva(url, titulo, excluir_prefixos)
 
 
 
