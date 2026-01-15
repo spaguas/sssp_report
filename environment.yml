@@ -1,23 +1,24 @@
 name: myenv
+
 channels:
-  - defaults
   - conda-forge
+
 dependencies:
   - python=3.9
+  - gdal
+  - geopandas
+  - rasterio
+  - rasterstats
+  - shapely
+  - fiona
   - pandas
   - numpy
   - requests
-  - gdal
   - python-dotenv
   - psycopg2
   - streamlit
-  - pip
-  - pip:
-    - rasterstats
-  - geopandas
   - plotly
-  - rasterstats
   - leafmap
   - matplotlib
   - schedule
-  - time
+  - pip
