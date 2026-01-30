@@ -219,6 +219,32 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
     # Separando latitudes, longitudes e valores
     lats, longs, values = zip(*filtered_stations)
 
+
+    df_postos = pd.DataFrame(filtered_stations, columns=["lat", "lon", "value"])
+    gdf_postos = gpd.GeoDataFrame(
+        df_postos,
+        geometry=gpd.points_from_xy(df_postos["lon"], df_postos["lat"]),
+        crs="EPSG:4326"
+    )
+    get_data = get_data.to_crs(gdf_postos.crs)
+
+    postos_por_area = gpd.sjoin(
+        gdf_postos,
+        get_data,
+        how="inner",
+        predicate="within"
+    )
+
+    stats_postos = (
+        postos_por_area
+        .groupby(postos_por_area.index_right)["value"]
+        .agg(
+            mean_stats_postos="mean",
+            max_stats_postos="max"
+        )
+        .reset_index()
+    )
+
     # Salvando os pontos em um shapefile temporário
     shapefile_path = "results/temp_points.shp"
     driver = ogr.GetDriverByName("ESRI Shapefile")
@@ -308,6 +334,15 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
         norm=norm
     )
 
+    data_stats = data_stats.merge(
+        stats_postos,
+        left_index=True,
+        right_on="index_right",
+        how="left"
+    )
+
+    data_stats = data_stats.drop(columns=["index_right"])
+
     # Adicionar o colorbar manualmente
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
@@ -353,6 +388,11 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
     st.title("Sinópse automática")
 
     if arquivo == 'cities_idw':
+
+        historical_city = get_city_historical_data()
+
+        data_stats = data_stats.merge(right=historical_city, on='GEOCODIGO', how='left' )
+
         data_stats = data_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
         maior_chuva_municipio = data_stats.iloc[0]["NOME"]
         maior_chuva_valor = data_stats.iloc[0][f"{estatistica_desejada}_precipitation"]
@@ -371,7 +411,10 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
         data_stats = data_stats.rename(
         columns={
             "NOME": "Município",
-            f"{estatistica_desejada}_precipitation": "Precipitação (mm)"
+            f"{estatistica_desejada}_precipitation": "Precipitação (mm)", 
+            'avg_rainfall': 'Histórico Mensal (mm)',
+            'mean_stats_postos': 'Média (mm)',
+            'max_stats_postos': 'Máxima (mm)'
         }
         )    
         data_stats = data_stats.sort_values(
@@ -385,6 +428,34 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
             data_stats[["Município", "Precipitação (mm)"]], 
             hide_index=True
         )
+
+        st.write("Estatísticas da Chuva (mm)")
+        cols = ['Média (mm)', 'Máxima (mm)', 'Histórico Mensal (mm)']
+
+        
+        # data_stats[cols] = data_stats[cols].round(2)
+
+        # df_show = data_stats.copy()
+
+        # df_show[cols] = df_show[cols].applymap(
+        #     lambda x: f"{x:.3f}" if pd.notna(x) else "-"
+        # )
+
+        # st.dataframe(
+        #     df_show[["Município", *cols]],
+        #     hide_index=True
+        # )
+        st.dataframe(
+            data_stats[["Município", *cols]],
+            hide_index=True,
+            column_config={
+                'Média (mm)': st.column_config.NumberColumn(format="%.3f"),
+                'Máxima (mm)': st.column_config.NumberColumn(format="%.3f"),
+                'Histórico Mensal (mm)': st.column_config.NumberColumn(format="%.3f"),
+            }
+        )
+
+
         # Create and display an interactive bar chart
         st.write("Gráfico Estações")
         fig = px.bar(
@@ -443,6 +514,13 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
         st.plotly_chart(fig)
 
     elif arquivo == "ugrhi_idw":
+
+        df_historical_ugrhi= get_ugrhi_historical_data()
+
+        data_stats['cod_ugrhi'] = data_stats['cod_ugrhi'].astype(str)
+        df_historical_ugrhi['cod_ugrhi'] = df_historical_ugrhi['cod_ugrhi'].astype(str)
+        data_stats = data_stats.merge(right=df_historical_ugrhi, on='cod_ugrhi', how='left' )
+
         data_stats = data_stats.sort_values(by=f"{estatistica_desejada}_precipitation", ascending=False)
         data_stats = data_stats.rename(columns={"nome_ugrhi": "Ugrhi"})
         maior_chuva_cedec = data_stats.iloc[0]["Ugrhi"]
@@ -462,9 +540,12 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
         data_stats = data_stats.rename(
         columns={
             "Nome": "Unidade de gerenciamento de recursos hídricos (Ugri)",
-            f"{estatistica_desejada}_precipitation": "Precipitação (mm)"
-        }
-        )    
+            f"{estatistica_desejada}_precipitation": "Precipitação (mm)",
+              'mean_stats_postos': 'Média (mm)',
+            'max_stats_postos': 'Máxima (mm)',
+            'avg_rainfall': 'Histórico Mensal (mm)'
+        })   
+
         data_stats = data_stats.sort_values(
             by="Precipitação (mm)",
             ascending=False  # Set to False for descending order
@@ -472,11 +553,17 @@ def gerar_mapa_chuva_shapefile(data_monitor_df, titulo, excluir_prefixos, date_t
 
         # Display the data table
         st.write("Tabela de Unidade de gerenciamento de recursos hídricos (Ugri)")
-        
         st.dataframe(
             data_stats[["Ugrhi", "Precipitação (mm)"]], 
             hide_index=True
         )
+
+        st.write("Estatísticas da Chuva (mm)")
+        st.dataframe(
+            data_stats[["Ugrhi", 'Média (mm)', 'Máxima (mm)', 'Histórico Mensal (mm)']], 
+            hide_index=True
+        )
+
         # Create and display an interactive bar chart
         st.write("Gráfico de Unidade de gerenciamento de recursos hídricos (Ugri)")
         fig = px.bar(
@@ -637,6 +724,61 @@ def get_data_chuva():
 
     return data_monitor_df
 
+def get_city_historical_data():
+
+    mes_atual = datetime.now().month
+    mes_anterior = 12 if mes_atual == 1 else mes_atual - 1
+
+    txt_month = {
+        'h_jan': 1,
+        'h_fev': 2,
+        'h_mar': 3,
+        'h_abr': 4,
+        'h_mai': 5,
+        'h_jun': 6,
+        'h_jul': 7,
+        'h_ago': 8,
+        'h_set': 9,
+        'h_out': 10,
+        'h_nov': 11,
+        'h_dez': 12
+    }
+    month_column = {v: k for k, v in txt_month.items()}
+    coluna_mes_anterior = month_column[mes_anterior]
+    query_city_historical = f"SELECT cod_ibge, {coluna_mes_anterior} AS avg_rainfall FROM avg_rainfall_cities;"
+
+    city_historical_df= execute_query(query_city_historical)
+    city_historical_df.rename(columns={'cod_ibge':'GEOCODIGO'}, inplace=True)
+    return city_historical_df
+
+
+def get_ugrhi_historical_data():
+
+    mes_atual = datetime.now().month
+    mes_anterior = 12 if mes_atual == 1 else mes_atual - 1
+
+    txt_month = {
+        'h_jan': 1,
+        'h_fev': 2,
+        'h_mar': 3,
+        'h_abr': 4,
+        'h_mai': 5,
+        'h_jun': 6,
+        'h_jul': 7,
+        'h_ago': 8,
+        'h_set': 9,
+        'h_out': 10,
+        'h_nov': 11,
+        'h_dez': 12
+    }
+    month_column = {v: k for k, v in txt_month.items()}
+    coluna_mes_anterior = month_column[mes_anterior]
+    query_ugrhi_historical = f"SELECT cod, {coluna_mes_anterior} AS avg_rainfall FROM avg_rainfall_ugrhis;"
+
+    ugrhi_historical_df= execute_query(query_ugrhi_historical)
+    ugrhi_historical_df.rename(columns={'cod':'cod_ugrhi'}, inplace=True)
+    return ugrhi_historical_df
+
 # Parâmetros de entrada do usuário no Streamlit
 st.title("Geração dos mapas interpolados dos pluviômetros")
 
@@ -660,11 +802,11 @@ if st.session_state.modo == "mensal":
         ("Município", "CEDEC", "Ugrhi", "Subugrhi"),
     )
     data_monitor_df = get_data_chuva()
+    
     url = None
     data_hora_inicial = data_monitor_df['data_inicial'].iloc[0]
     data_hora_final = data_monitor_df['data_final'].iloc[0]
 
-    
     data_hora_inicial_str = data_hora_inicial.strftime("%d-%m-%Y %H:%M")
     data_hora_final_str = data_hora_final.strftime("%d-%m-%Y %H:%M")
 
@@ -739,7 +881,7 @@ if st.session_state.modo == "mensal":
     # Exibir o intervalo selecionado
     st.write("Intervalo selecionado:", str(selected_bounds))
 
-    titulo = f"Acumulado de chuvas de {data_hora_final_str} à {data_hora_inicial_str}"
+    titulo = f"Acumulado de chuvas de {data_hora_inicial_str} à {data_hora_final_str}"
 
     opcoes_estatistica = ["mean", "max", "median", "majority"]
 
@@ -752,7 +894,7 @@ if st.session_state.modo == "mensal":
 
 
     if option == "Município":
-        st.write(f'Interpolação por município de {data_hora_final} à {data_hora_inicial}')
+        st.write(f'Interpolação por município de {data_hora_inicial} à {data_hora_final}')
 
         sp_border = gpd.read_file('./data/DIV_MUN_SP_2021a.shp').to_crs(epsg=4326)
         sp_border_shapefile = "results/sp_border.shp"
